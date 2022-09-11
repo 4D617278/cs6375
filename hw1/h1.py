@@ -37,17 +37,25 @@ def main():
 		with open(sys.argv[START_INDEX + i]) as f:
 			dirs.append(f.readlines())
 
-	data = get_data(dirs)
+	matrix = [[] for c in Class]
+	words = set()
 
-	counts = data.count(axis='columns')
+	get_data(matrix, words, dirs)
+	df = pd.DataFrame(matrix)
+
+	counts = df.count(axis='columns')
 	priors = counts.div(counts.sum(), axis='rows')
-	print(priors)
+
+	print(words)
 
 	#max_prob()
 
-def get_counts(counts, file):
+def add_counts(vector, words, file):
 	f = open(file, 'r', errors='replace')
 	tokens = word_tokenize(f.read())
+	f.close()
+
+	counts = {}
 
 	for token in tokens:
 		if token in counts:
@@ -55,21 +63,16 @@ def get_counts(counts, file):
 		else:
 			counts[token] = 1
 
-	f.close()
+	words.update(set(tokens))
+	vector.append(counts)
 
-def get_data(dirs):
-	data = [[] for c in Class]
-
+def get_data(matrix, words, dirs):
 	for i in range(len(Class)):
 		for dir in dirs[i]:
 			for dirpath, _, filenames in walk(dir.rstrip()):
 				for filename in filenames:
-					counts = {}
 					file = join(dirpath, filename)
-					get_counts(counts, file)
-					data[i].append(counts)
-
-	return pd.DataFrame(data)
+					add_counts(matrix[i], words, file)
 
 if __name__ == '__main__':
 	main()
