@@ -38,7 +38,7 @@ def main():
 			dirs.append(f.readlines())
 
 	matrix = [[] for c in Class]
-	words = set()
+	words = [set() for c in Class]
 
 	get_data(matrix, words, dirs)
 	df = pd.DataFrame(matrix)
@@ -72,7 +72,7 @@ def get_data(matrix, words, dirs):
 			for dirpath, _, filenames in walk(dir.rstrip()):
 				for filename in filenames:
 					file = join(dirpath, filename)
-					add_counts(matrix[i], words, file)
+					add_counts(matrix[i], words[i], file)
 
 if __name__ == '__main__':
 	main()
