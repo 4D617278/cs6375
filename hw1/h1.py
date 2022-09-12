@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from collections import Counter
 from enum import Enum
+import math
 from nltk import word_tokenize
 from os import walk
 from os.path import join
@@ -13,17 +14,23 @@ class Class(Enum):
 
 # real \in [0, 1]
 #) P(c | d) = log(P(c)) + sum(log P(w|c)) \forall w in D 
-def cond_prob(_class, priors, word_sets, cond_probs):
-	prob = 0
-	for word in word_sets:
-		prob += log(cond_probs[_class][word])
-	prob += log(priors[_class])
+def prob(vector, priors, total, cond_probs):
+	prob = math.log(priors)
+	for word in vector.keys():
+		if word in cond_probs:
+			prob += math.log(cond_probs[word])
+		else:
+			prob += math.log(1 / total)
 	return prob
 
 # c \in Class 
 # c_max | P(c_max | d) >= P(c | d) forall c \in Class
-def max_prob(vector, priors, word_sets, cond_probs) -> Class:
-	return max([cond_prob(c, priors, word_sets, cond_probs) for c in Class])
+def max_prob(vector, priors, totals, cond_probs) -> Class:
+	probs = [prob(vector, priors[c], totals[c], cond_probs[c]) for c in range(len(Class))]
+	max_p = max(probs)
+	c_max = probs.index(max_p)
+	print(probs)
+	return c_max
 
 START_INDEX = 1
 
@@ -42,54 +49,56 @@ def main():
 			train_dirs.append([dir[0] for dir in dirs])
 			test_dirs.append([dir[1] for dir in dirs])
 
-	# Train
-
-	# w_cni, c -> class, example number, word index
+	# w_cni, c -> class, vector number, word index
 	# [ [{w_111: |w_111|, ..., w_11n: |w_11n|}, ..., {w_1n1: |w_1n1|, ..., w_1nn: |w_1nn|}], 
 	#   [{w_211: |w_211|, ..., w_21n: |w_21n|}, ..., {w_2n1: |w_2n1|, ..., w_2nn: |w_2nn|}] ]
-	matrix = [[] for c in Class]
+	train_matrix = [[] for c in Class]
+	test_matrix = [[] for c in Class]
+
+	add_data(train_matrix, train_dirs)
+	add_data(test_matrix, test_dirs)
+
+	# compute priors
+	df = pd.DataFrame(train_matrix)
+	file_counts = df.count(axis='columns')
+	priors = file_counts.div(file_counts.sum(), axis='rows')
 
 	# [{w_11: |w_11|, w_1n: |w_1n|}, {w_21: |w_21|, ..., w_2n: |w_2n|}]
-	sum_counts = [Counter() for c in Class]
-
-	add_data(matrix, sum_counts, train_dirs)
-
-	df = pd.DataFrame(matrix)
-	counts = df.count(axis='columns')
-	priors = counts.div(counts.sum(), axis='rows')
-
+	counts = [Counter() for c in Class]
 	# [{w_11: f_11, w_1n: f_1n}, {w_21: f_21, ..., w_2n: f_2n}]
 	cond_probs = [{} for c in Class]
+	totals = [0, 0]
 
-	# add-1 smoothing
+	# train
 	for i in range(len(Class)):
-		total = sum_counts[i].total() + len(sum_counts[i].keys())
-		for word in sum_counts[i]:
-			cond_probs[i][word] = (sum_counts[i][word] + 1) / total
+		for vector in train_matrix[i]:
+			counts[i].update(vector)
 
-	print(cond_probs)
+		# add-1 smoothing
+		totals[i] = counts[i].total() + len(counts[i].keys())
+		for word in counts[i]:
+			cond_probs[i][word] = (counts[i][word] + 1) / totals[i]
 
-	# Test
-	#add_data(matrix, sum_counts, test_dirs)
-	#for vector in matrix:
-	#	max_prob(vector, priors, sum_counts, cond_probs)
+	# test
+	for i in range(len(Class)):
+		for vector in test_matrix[i]:
+			print(f'{max_prob(vector, priors, totals, cond_probs)} {i}')
 
-def add_counts(vector, sum_counts, file):
+def add_counts(vector, file):
 	f = open(file, 'r', errors='replace')
 	text = f.read()
 	f.close()
 
 	counts = Counter(word_tokenize(text))
-	sum_counts.update(counts)
 	vector.append(counts)
 
-def add_data(matrix, sum_counts, dirs):
+def add_data(matrix, dirs):
 	for i in range(len(Class)):
 		for dir in dirs[i]:
 			for dirpath, _, filenames in walk(dir.rstrip()):
 				for filename in filenames:
 					file = join(dirpath, filename)
-					add_counts(matrix[i], sum_counts[i], file)
+					add_counts(matrix[i], file)
 
 if __name__ == '__main__':
 	main()
