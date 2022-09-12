@@ -14,22 +14,21 @@ class Class(Enum):
 
 # real \in [0, 1]
 #) P(c | d) = log(P(c)) + sum(log P(w|c)) \forall w in D 
-def prob(vector, priors, total, cond_probs):
+def prob(vector, priors, cond_probs):
 	prob = math.log(priors)
 	for word in vector.keys():
 		if word in cond_probs:
 			prob += math.log(cond_probs[word])
 		else:
-			prob += math.log(1 / total)
+			prob += math.log(cond_probs[None])
 	return prob
 
 # c \in Class 
 # c_max | P(c_max | d) >= P(c | d) forall c \in Class
-def max_prob(vector, priors, totals, cond_probs) -> Class:
-	probs = [prob(vector, priors[c], totals[c], cond_probs[c]) for c in range(len(Class))]
+def max_prob(vector, priors, cond_probs) -> Class:
+	probs = [prob(vector, priors[c], cond_probs[c]) for c in range(len(Class))]
 	max_p = max(probs)
 	c_max = probs.index(max_p)
-	print(probs)
 	return c_max
 
 START_INDEX = 1
@@ -67,22 +66,26 @@ def main():
 	counts = [Counter() for c in Class]
 	# [{w_11: f_11, w_1n: f_1n}, {w_21: f_21, ..., w_2n: f_2n}]
 	cond_probs = [{} for c in Class]
-	totals = [0, 0]
 
 	# train
 	for i in range(len(Class)):
 		for vector in train_matrix[i]:
 			counts[i].update(vector)
 
+		# add unknown
+		counts[i][None] = 0
+
 		# add-1 smoothing
-		totals[i] = counts[i].total() + len(counts[i].keys())
+		total = counts[i].total() + len(counts[i].keys())
 		for word in counts[i]:
-			cond_probs[i][word] = (counts[i][word] + 1) / totals[i]
+			cond_probs[i][word] = (counts[i][word] + 1) / total
 
 	# test
 	for i in range(len(Class)):
+		good = 0
 		for vector in test_matrix[i]:
-			print(f'{max_prob(vector, priors, totals, cond_probs)} {i}')
+			good += (max_prob(vector, priors, cond_probs) == i)
+		print(good / len(test_matrix[i]))
 
 def add_counts(vector, file):
 	f = open(file, 'r', errors='replace')
