@@ -5,7 +5,6 @@ import math
 from nltk import word_tokenize
 from os import walk
 from os.path import join
-import pandas as pd
 import sys
 
 class Class(IntEnum):
@@ -42,43 +41,25 @@ def bin_prob(set, prior, cond_probs):
 	#		prob += math.log(cond_probs[word])
 	#	else:
 	#		prob += math.log(1 - cond_probs[word])
-	#print(set)
 	return prob
 
-def max_prob(vector, priors, cond_probs, prob):
+def max_prob(vector, priors, cond_probs, prob, cls):
 	probs = [prob(vector, priors[c], cond_probs[c]) for c in Class]
 	max_p = max(probs)
 	c_max = probs.index(max_p)
-	# print(f'{probs} {c_max}')
-	return c_max
+	return c_max == cls
 
+# add-1 smoothing
 def smooth(counts, total, cond_probs):
 	for word in counts:
 		cond_probs[word] = (counts[word] + 1) / total
 
-def multi_cond_prob(vector, cond_probs):
-	counts = Counter()
-	for counter in vector:
-		counts.update(counter)
-
-	# add unknown
-	counts[None] = 0
-
-	# add-1 smoothing
+def multi_cond_prob(counts, cond_probs):
 	total = counts.total() + len(counts.keys())
 	smooth(counts, total, cond_probs)
 
-def bin_cond_prob(vector, cond_probs):
-	counts = Counter()
-	for counter in vector:
-		counts.update(set(counter))
-
-	# add unknown
-	counts[None] = 0
-
-	# add-1 smoothing
-	# total = len(vector) + 2 # max states of vector component
-	total = counts.total() + len(counts.keys())
+def bin_cond_prob(vlen, counts, cond_probs):
+	total = vlen + 2 # num subsets
 	smooth(counts, total, cond_probs)
 
 START_INDEX = 1
@@ -109,36 +90,45 @@ def main():
 		add_data(train_matrix[c], train_dirs[c])
 		add_data(test_matrix[c], test_dirs[c])
 
+	# binary and unigram matrix
+	binary_matrix = [Counter() for c in Class]
+	unigram_matrix = [Counter() for c in Class]
+
+	for c in Class:
+		for counter in train_matrix[c]:
+			binary_matrix[c].update(set(counter))
+			unigram_matrix[c].update(counter)
+		binary_matrix[c][None] = 0
+		unigram_matrix[c][None] = 0
+
 	# compute priors
-	df = pd.DataFrame(train_matrix)
-	file_counts = df.count(axis='columns')
-	priors = file_counts.div(file_counts.sum(), axis='rows')
+	num_files = [len(train_matrix[c]) for c in Class]
+	total_files = sum(num_files)	
+	priors = [num_files[c] / total_files for c in Class]
 
 	# list of list of dicts
 	# cond_prob = [class][file][word]
 	cond_probs = [{} for c in Class]
 
 	for c in Class:
-		multi_cond_prob(train_matrix[c], cond_probs[c])
+		multi_cond_prob(unigram_matrix[c], cond_probs[c])
 
 	for c in Class:
-		sum = 0
+		s = 0
 		for vector in test_matrix[c]:
-			sum += (max_prob(vector, priors, cond_probs, multi_prob) == c)
-			# print(f'{max_c} {cls}')
-		print(sum / len(test_matrix[c]))
+			s += max_prob(vector, priors, cond_probs, multi_prob, c)
+		print(s / len(test_matrix[c]))
 
 	cond_probs = [{} for c in Class]
 
 	for c in Class:
-		bin_cond_prob(train_matrix[c], cond_probs[c])
+		bin_cond_prob(num_files[c], binary_matrix[c], cond_probs[c])
 
 	for c in Class:
-		sum = 0
+		s = 0
 		for vector in test_matrix[c]:
-			sum += (max_prob(set(vector), priors, cond_probs, bin_prob) == c)
-			# print(int(c))
-		print(sum / len(test_matrix[c]))
+			s += max_prob(set(vector), priors, cond_probs, bin_prob, c)
+		print(s / len(test_matrix[c]))
 
 
 def add_counts(vector, file):
