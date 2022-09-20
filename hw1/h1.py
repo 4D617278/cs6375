@@ -43,7 +43,65 @@ def bin_prob(set, prior, cond_probs):
 	#		prob += math.log(1 - cond_probs[word])
 	return prob
 
-def max_prob(vector, priors, cond_probs, prob, cls):
+def dot_prod(v1, v2):
+	return sum(v1 * v2 for (v1, v2) in zip(v1, v2))
+
+def log_reg_cls(vector, weights):
+	return (dot_prod(vector, weights) > 0)
+
+def log_reg(vector, weights):
+	# exp = 2 ** dot_prod(vector, weights)
+	exp = math.e ** dot_prod(vector, weights)
+	return exp / (1 + exp)
+
+def log_reg(dot):
+	# exp = 2 ** dot
+	exp = math.e ** dot
+	return exp / (1 + exp)
+
+def grad_ascent(vector, weights, rate, penalty, max_error, cls):
+	log_reg_table = {}
+
+	num_weights = len(weights)
+	penalty_factor = (1 - rate * penalty)
+	total_error = max_error
+
+	while abs(total_error) >= max_error:
+		total_error = 0
+
+		for i in range(num_weights):
+			error_sum = 0
+
+			for counter in vector:
+				vec = list(counter.values())
+
+				if i >= len(vec):
+					continue
+
+				dot = dot_prod(vec, weights)
+
+				if dot not in log_reg_table:
+					log_reg_table[dot] = log_reg(dot)
+				error = cls - log_reg_table[dot]
+
+				error_sum += error * vec[i]
+
+			total_error += error_sum
+			weights[i] *= penalty_factor 
+			weights[i] += rate * error_sum
+
+		print(total_error)
+
+def bin_search():
+	pass
+
+def split(matrix, learn_matrix, dev_matrix, percent, num_files):
+	for c in Class:
+		split = round(percent * num_files[c])
+		learn_matrix[c] = matrix[c][:split]
+		dev_matrix[c] = matrix[c][split:]
+
+def test(vector, priors, cond_probs, prob, cls):
 	probs = [prob(vector, priors[c], cond_probs[c]) for c in Class]
 	max_p = max(probs)
 	c_max = probs.index(max_p)
@@ -106,30 +164,48 @@ def main():
 	total_files = sum(num_files)	
 	priors = [num_files[c] / total_files for c in Class]
 
+	num_test_files = [len(test_matrix[c]) for c in Class]
+
 	# list of list of dicts
 	# cond_prob = [class][file][word]
 	cond_probs = [{} for c in Class]
-
 	for c in Class:
 		multi_cond_prob(unigram_matrix[c], cond_probs[c])
-
 	for c in Class:
 		s = 0
 		for vector in test_matrix[c]:
-			s += max_prob(vector, priors, cond_probs, multi_prob, c)
-		print(s / len(test_matrix[c]))
+			s += test(vector, priors, cond_probs, multi_prob, c)
+		print(s / num_test_files[c])
 
 	cond_probs = [{} for c in Class]
-
 	for c in Class:
 		bin_cond_prob(num_files[c], binary_matrix[c], cond_probs[c])
-
 	for c in Class:
 		s = 0
 		for vector in test_matrix[c]:
-			s += max_prob(set(vector), priors, cond_probs, bin_prob, c)
-		print(s / len(test_matrix[c]))
+			s += test(set(vector), priors, cond_probs, bin_prob, c)
+		print(s / num_test_files[c])
 
+	learn_matrix = [[] for c in Class]
+	dev_matrix = [[] for c in Class]
+	split(train_matrix, learn_matrix, dev_matrix, 0.7, num_files)
+
+	weights = [[] for c in Class]
+
+	for c in Class:
+		max_train_len = max([len(vector) for vector in train_matrix[c]])
+		max_test_len = max([len(vector) for vector in test_matrix[c]])
+		max_len = max(max_train_len, max_test_len)
+		weights[c] = [0 for _ in range(max_len)]
+
+	for c in Class:
+		print()
+		grad_ascent(learn_matrix[c], weights[c], 0.01, 0.1, 1, c)
+
+	#penalty = bin_search(dev_matrix)
+	#log_reg_train(train_matrix, weights, 0.01, penalty, 0.5)
+	#test()
+	
 
 def add_counts(vector, file):
 	f = open(file, 'r', errors='replace')
