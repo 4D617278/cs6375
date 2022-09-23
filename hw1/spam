@@ -1,0 +1,2 @@
+./train/spam ./enron1/train/spam ./enron4/train/spam
+./test/spam ./enron1/test/spam ./enron4/test/spam

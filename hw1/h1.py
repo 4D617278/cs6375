@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-from collections import Counter
+from collections import Counter 
 from enum import IntEnum
+from log_reg import grad_ascent, log_reg_cls
 from math import log
+from multi_bin import *
 from nltk import word_tokenize
+import numpy as np
 from os import listdir
 from os.path import join
 from sys import argv
-from log_reg import grad_ascent, log_reg_cls
 
 class Class(IntEnum):
 	ham = 0
@@ -16,38 +18,6 @@ class Use(IntEnum):
 	train = 0
 	test = 1
 
-def multi_prob(vector, args):
-	priors, cond_probs = args
-	probs = [None for c in Class]
-	for c in Class:
-		probs[c] = log(priors[c])
-		cond_prob = cond_probs[c]
-		for word in vector.keys():
-			if word in cond_prob:
-				probs[c] += log(cond_prob[word])
-			else:
-				probs[c] += log(cond_prob[None])
-	return probs.index(max(probs))
-
-def bin_prob(vector, args):
-	priors, cond_probs = args
-	probs = [None for c in Class]
-	for c in Class:
-		probs[c] = log(priors[c])
-		cond_prob = cond_probs[c]
-		for word in set(vector):
-			if word in cond_prob:
-				probs[c] += log(cond_prob[word])
-			else:
-				probs[c] += log(cond_prob[None])
-
-		#for word in cond_prob.keys():
-		#	if word in set(vector):
-		#		probs[c] += log(cond_prob[word])
-		#	else:
-		#		probs[c] += log(1 - cond_prob[word])
-	return probs.index(max(probs))
-
 def split(matrix, learn_matrix, dev_matrix, percent, num_files):
 	for c in Class:
 		split = round(percent * num_files[c])
@@ -55,27 +25,21 @@ def split(matrix, learn_matrix, dev_matrix, percent, num_files):
 		dev_matrix[c] = matrix[c][split:]
 
 def test(alg, matrix, args):
-	for c in Class:
-		s = 0
-		for vector in matrix[c]:
-			s += (alg(vector, args) == c)
-		print(s / len(matrix[c]))
+	counts = np.zeros(shape=(len(Class), len(Class)))
+	for cls in Class:
+		for vector in matrix[cls]:
+			out = alg(vector, args)
+			counts[out][cls] += 1
 
-# add-1 smoothing
-def smooth(counts, total, cond_probs):
-	for word in counts:
-		cond_probs[word] = (counts[word] + 1) / total
+	precision = counts[Class.spam][Class.spam] / counts[Class.spam].sum()
+	recall = counts[Class.spam][Class.spam] / counts.sum(axis=1)[Class.spam]
+	print(f'Algorithm: {alg.__name__}')
+	print(f'Recall: {recall}')
+	print(f'Precision: {precision}')
+	print(f'Accuracy: {np.trace(counts) / np.concatenate(counts).sum()}')
+	print(f'F1: {(2 * recall * precision) / (recall + precision)}')
+	print()
 
-def train_multi(matrix, cond_probs):
-	for c in Class:
-		total = matrix[c].total() + len(matrix[c].keys())
-		smooth(matrix[c], total, cond_probs[c])
-
-def train_bin(num_files, matrix, cond_probs):
-	for c in Class:
-		total = num_files[c] + 2 # num subsets
-		smooth(matrix[c], total, cond_probs[c])
-	
 def add_counts(vector, file):
 	with open(file, 'r', errors='replace') as f:
 		text = f.read()
@@ -162,22 +126,24 @@ def main():
 	# log_reg
 	weights = {}
 
-	#print(f'max: {max(weights, key=weights.get)} {max(weights.values())}')
+	#max_weight = max(weights, key=weights.get)
+	#print(f'max: {max_weight} {weight[max_weight]}')
 
 	# weights[None] is bias
 	for c in Class:
 		weights.update(binary_matrix[c])
 
 	for c in Class:
-		print()
 		grad_ascent(learn_matrix[c], weights, 0.1, 0.1, 0.26, c)
-
-	print()
 	test(log_reg_cls, dev_matrix, weights)
 
+	#weights = {}
 	#for c in Class:
-	#	grad_ascent(matrix[Use.train], weights, 0.01, penalty, 0.5, c)
-	#test(log_reg_cls, test_matrix, weights)
+	#	weights.update(binary_matrix[c])
+
+	#for c in Class:
+	#	grad_ascent(matrix[Use.train], weights, 0.1, 0.1, 0.1, c)
+	#test(log_reg_cls, matrix[Use.test], weights)
 
 if __name__ == '__main__':
 	main()

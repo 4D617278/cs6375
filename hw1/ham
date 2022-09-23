@@ -1,0 +1,2 @@
+./train/ham  ./enron1/train/ham ./enron4/train/ham
+./test/ham ./enron1/test/ham ./enron4/test/ham

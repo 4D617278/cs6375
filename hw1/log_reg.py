@@ -4,7 +4,7 @@ def dot_prod(v1, v2):
 	return sum(v1[key] * v2.get(key, 0) for key in v1)
 
 def log_reg_cls(counter, weights):
-	return (dot_prod(counter, weights) > 0)
+	return int(dot_prod(counter, weights) > 0)
 
 def log_reg(dot):
 	# prevent overflow
@@ -51,4 +51,4 @@ def grad_ascent(vector, weights, rate, penalty, max_error, cls):
 			weights[weight] *= penalty_factor 
 			weights[weight] += rate * error_sums[weight]
 
-		print(total_error)
+		#print(total_error)
