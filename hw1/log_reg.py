@@ -6,7 +6,7 @@ def dot_prod(v1, v2):
 def log_reg_cls(counter, weights):
 	return int(dot_prod(counter, weights) > 0)
 
-def log_reg(dot):
+def softmax(dot):
 	# prevent overflow
 	if dot >= 0:
 		exp = math.e ** -dot
@@ -16,8 +16,6 @@ def log_reg(dot):
 		return exp / (1 + exp)
 
 def grad_ascent(vector, weights, rate, penalty, max_error, cls):
-	log_reg_table = {}
-
 	penalty_factor = (1 - rate * penalty)
 	total_error = max_error
 	error_sums = {}
@@ -26,6 +24,7 @@ def grad_ascent(vector, weights, rate, penalty, max_error, cls):
 	for counter in vector:
 		counter[None] = 1
 
+	#for i in range(loops):
 	while abs(total_error) >= max_error:
 		total_error = 0
 
@@ -35,12 +34,10 @@ def grad_ascent(vector, weights, rate, penalty, max_error, cls):
 		for counter in vector:
 			# t_d - o_d
 			dot = dot_prod(counter, weights)
+			out = softmax(dot)
+			#print(f'dot: {dot}, out: {out}')
 
-			if dot not in log_reg_table:
-				log_reg_table[dot] = log_reg(dot)
-			error = cls - log_reg_table[dot]
-			#print(f'dot: {dot}, out: {log_reg_table[dot]})
-
+			error = cls - out
 			total_error += error
 
 			# (t_d - o_d) * v_i
