@@ -70,6 +70,7 @@ def add_counts(vector, file):
 	del counts['-']
 	del counts['the']
 	del counts['and']
+	del counts['a']
 
 	vector.append(counts)
 
@@ -130,14 +131,9 @@ def main():
 	dev = [[] for c in Class]
 	split(matrix[Use.train], train, dev, 0.7, num_files)
 
-	weights = [{} for m in Model]
-	for c in Class:
-		for m in Model:
-			weights[m].update(counts[m][c])
-
-	inputs = [[] for u in Use]
+	inputs = [[[] for u in Use] for m in Model]
 	labels = [[] for u in Use]
-	vectors = [None for u in Use]
+	vectors = [[None for u in Use] for m in Model]
 	words = set()
 
 	for u in Use:
@@ -145,31 +141,38 @@ def main():
 			for counter in matrix[u][c]:
 				words.update(counter)
 
+	weights = [dict.fromkeys(words, 1) for m in Model]
+	#for c in Class:
+	#	for m in Model:
+	#		weights[m].update(counts[m][c])
+
 	word_indices = {word: i for i, word in enumerate(words)}
 
 	for u in Use:
 		for c in Class:
-			inputs[u] += matrix[u][c] 
+			inputs[Model.bin][u] += [Counter(set(c)) for c in matrix[u][c]]
+			inputs[Model.multi][u] += matrix[u][c] 
 			labels[u] += [c for i in range(len(matrix[u][c]))]
 
-		vectors[u] = np.zeros(shape=(len(inputs[u]), len(words)))
+		for m in Model:
+			vectors[m][u] = np.zeros(shape=(len(inputs[m][u]), len(words)))
 
-		split_index = round(len(inputs[u]) * 0.7)
-		counters = inputs[u]
+			split_index = round(len(inputs[m][u]) * 0.7)
+			counters = inputs[m][u]
 
-		for i in range(split_index):
-			for word in counters[i]:
-				index = word_indices[word]
-				vectors[u][i][index] = counters[i][word]
+			for i in range(split_index):
+				for word in counters[i]:
+					index = word_indices[word]
+					vectors[m][u][i][index] = counters[i][word]
 
-		for i in range(split_index, len(inputs[u])):
-			for word in counters[i]:
-				index = word_indices[word]
-				vectors[u][i][index] = counters[i][word]
+			for i in range(split_index, len(inputs[m][u])):
+				for word in counters[i]:
+					index = word_indices[word]
+					vectors[m][u][i][index] = counters[i][word]
 
 	#for m in Model:
 	#	max_weight = max(weights[m], key=weights[m].get)
-	#	print(f'max: {max_weight} {weight[m][max_weight]}')
+	#	print(f'max: {max_weight} {weights[m][max_weight]}')
 
 	# multinomial
 	#cond_probs = [{} for c in Class]
@@ -183,28 +186,26 @@ def main():
 
 	# log_reg
 	for m in Model:
-		for c in Class:
-			grad_ascent(train[c], weights[m], 0.1, 0, 0.26, c)
-		test(log_reg_cls, m.name, dev, weights[m])
-		for c in Class:
-			grad_ascent(matrix[Use.train][c], weights[m], 0.1, 0, 0.26, c)
+		#grad_ascent(train, weights[m], 50, 0, 1.51)
+		#test(log_reg_cls, m.name, dev, weights[m])
+		grad_ascent(inputs[m][Use.train], labels[Use.train], weights[m], 0.3, 0, 3.4)
 		test(log_reg_cls, m.name, matrix[Use.test], weights[m])
 
 	# SGDClassifier
-	clf = make_pipeline(# StandardScaler(), 
+	clf = make_pipeline(StandardScaler(), 
 						SGDClassifier(max_iter=1E3, tol=1E-3))
 	param_grid = [
 		{'sgdclassifier__loss': ['log_loss', 'hinge'], 
-		 'sgdclassifier__penalty': ['l1', 'l2']},
+		 'sgdclassifier__penalty': ['l1', 'l2'],
+		 'sgdclassifier__tol': [1E-2, 1E-3, 1E-4]},
 	]
 
 	grid_search = GridSearchCV(clf, param_grid)
-	grid_search.fit(vectors[Use.train], labels[Use.train])
-	print(grid_search.best_params_)
 
-	#for m in Model:
-	#	test(clf.predict, m.name, )
-	test(grid_search.predict, "", vectors[Use.test], labels[Use.test], True)
+	for m in Model:
+		grid_search.fit(vectors[m][Use.train], labels[Use.train])
+		print(grid_search.best_params_)
+		test(grid_search.predict, m.name, vectors[m][Use.test], labels[Use.test], True)
 
 if __name__ == '__main__':
 	main()

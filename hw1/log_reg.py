@@ -15,7 +15,7 @@ def softmax(dot):
 		exp = math.e ** dot
 		return exp / (1 + exp)
 
-def grad_ascent(vector, weights, rate, penalty, max_error, cls):
+def grad_ascent(vector, labels, weights, rate, penalty, max_error):
 	penalty_factor = (1 - rate * penalty)
 	total_error = max_error
 	error_sums = {}
@@ -31,21 +31,21 @@ def grad_ascent(vector, weights, rate, penalty, max_error, cls):
 		for weight in weights:
 			error_sums[weight] = 0
 
-		for counter in vector:
+		for i in range(len(vector)):
 			# t_d - o_d
-			dot = dot_prod(counter, weights)
+			dot = dot_prod(vector[i], weights)
 			out = softmax(dot)
 			#print(f'dot: {dot}, out: {out}')
 
-			error = cls - out
+			error = labels[i] - out
 			total_error += error
 
 			# (t_d - o_d) * v_i
-			for weight in weights.keys() & counter.keys():
-				error_sums[weight] += error * counter[weight]
+			for weight in weights.keys() & vector[i].keys():
+				error_sums[weight] += error * vector[i][weight]
 
 		for weight in weights:
 			weights[weight] *= penalty_factor 
 			weights[weight] += rate * error_sums[weight]
 
-		#print(total_error)
+		print(total_error)
