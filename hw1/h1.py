@@ -26,23 +26,22 @@ class Model(IntEnum):
 	bin = 0
 	multi = 1
 
-def split(matrix, learn_matrix, dev_matrix, percent, num_files):
-	for c in Class:
-		split = round(percent * num_files[c])
-		learn_matrix[c] = matrix[c][:split]
-		dev_matrix[c] = matrix[c][split:]
-
-def test(alg, model, matrix, args, sgd=False):
+def test(alg, model, matrix, args, sgd=False, labels=None):
 	counts = np.zeros(shape=(len(Class), len(Class)))
 	if sgd:
 		outputs = alg(matrix)
 		for i in range(len(outputs)):
 			counts[outputs[i]][args[i]] += 1
 	else:
-		for cls in Class:
-			for vector in matrix[cls]:
-				out = alg(vector, args)
-				counts[out][cls] += 1
+		if labels is None:
+			for cls in Class:
+				for vector in matrix[cls]:
+					out = alg(vector, args)
+					counts[out][cls] += 1
+		else:
+			for i in range(len(matrix)):
+				out = alg(matrix[i], args)
+				counts[out][labels[i]] += 1
 
 	precision = counts[Class.spam][Class.spam] / counts[Class.spam].sum()
 	recall = counts[Class.spam][Class.spam] / counts.sum(axis=1)[Class.spam]
@@ -105,15 +104,19 @@ def main():
 			add_data(matrix[u][c], dirs[u].split())
 
 	# compute priors
-	num_files = [len(matrix[Use.train][c]) for c in Class]
-	total_files = sum(num_files)	
-	priors = [num_files[c] / total_files for c in Class]
+	num_files = np.empty(shape=(len(Use), len(Class)), dtype=int)
+
+	for u in Use:
+		for c in Class:
+			num_files[u][c] = len(matrix[u][c])
+
+	priors = num_files[Use.train] / num_files[Use.train].sum()
 
 	counts = [[Counter() for c in Class] for m in Model]
 	#split = [Counter() for c in Class]
 
 	for c in Class:
-		split_index = round(num_files[c] * 0.7)
+		split_index = round(num_files.sum(axis=0)[c] * 0.7)
 
 		for counter in matrix[Use.train][c][:split_index]:
 			counts[Model.bin][c].update(set(counter))
@@ -127,9 +130,15 @@ def main():
 		for m in Model:
 			counts[m][c][None] = 0
 
-	train = [[] for c in Class]
-	dev = [[] for c in Class]
-	split(matrix[Use.train], train, dev, 0.7, num_files)
+	# multinomial
+	#cond_probs = [{} for c in Class]
+	#train_multi(counts[Model.multi], cond_probs)
+	#test(multi_prob, Model.multi.name, matrix[Use.test], (priors, cond_probs))
+
+	# binary
+	#cond_probs = [{} for c in Class]
+	#train_bin(num_files[Use.train], counts[Model.bin], cond_probs)
+	#test(bin_prob, Model.bin.name, matrix[Use.test], (priors, cond_probs))
 
 	inputs = [[[] for u in Use] for m in Model]
 	labels = [[] for u in Use]
@@ -142,17 +151,23 @@ def main():
 				words.update(counter)
 
 	weights = [dict.fromkeys(words, 1) for m in Model]
-	#for c in Class:
-	#	for m in Model:
-	#		weights[m].update(counts[m][c])
 
 	word_indices = {word: i for i, word in enumerate(words)}
 
+	train = [[] for m in Model]
+	dev = [[] for m in Model]
+	train_labels = [[] for m in Model]
+	dev_labels = [[] for m in Model]
+
 	for u in Use:
+		labels[u] = np.empty(num_files[u].sum(), dtype=int)
+
+		start = 0
 		for c in Class:
 			inputs[Model.bin][u] += [Counter(set(c)) for c in matrix[u][c]]
-			inputs[Model.multi][u] += matrix[u][c] 
-			labels[u] += [c for i in range(len(matrix[u][c]))]
+			inputs[Model.multi][u] += matrix[u][c]
+			labels[u][start:start + num_files[u][c]] = c
+			start += num_files[u][c]
 
 		for m in Model:
 			vectors[m][u] = np.zeros(shape=(len(inputs[m][u]), len(words)))
@@ -170,42 +185,39 @@ def main():
 					index = word_indices[word]
 					vectors[m][u][i][index] = counters[i][word]
 
-	#for m in Model:
-	#	max_weight = max(weights[m], key=weights[m].get)
-	#	print(f'max: {max_weight} {weights[m][max_weight]}')
+	for m in Model:
+		split_index = round(len(inputs[m][Use.train]) * 0.7)
+		train[m] = inputs[m][Use.train][:split_index]
+		dev[m] = inputs[m][Use.train][split_index:]
+		split_index = round(labels[Use.train].size * 0.7)
+		train_labels[m] = labels[Use.train][:split_index]
+		dev_labels[m] = labels[Use.train][split_index:]
 
-	# multinomial
-	#cond_probs = [{} for c in Class]
-	#train_multi(counts[Model.multi], cond_probs)
-	#test(multi_prob, Model.multi.name, matrix[Use.test], (priors, cond_probs))
-
-	# binary
-	#cond_probs = [{} for c in Class]
-	#train_bin(num_files, counts[Model.bin], cond_probs)
-	#test(bin_prob, Model.bin.name, matrix[Use.test], (priors, cond_probs))
+	#print(dev)
+	#print(train)
 
 	# log_reg
 	for m in Model:
-		#grad_ascent(train, weights[m], 50, 0, 1.51)
-		#test(log_reg_cls, m.name, dev, weights[m])
+		grad_ascent(train[m], train_labels[m], weights[m], 0.3, 0, 3.4)
+		test(log_reg_cls, m.name, dev[m], weights[m], labels=dev_labels[m])
 		grad_ascent(inputs[m][Use.train], labels[Use.train], weights[m], 0.3, 0, 3.4)
 		test(log_reg_cls, m.name, matrix[Use.test], weights[m])
 
 	# SGDClassifier
-	clf = make_pipeline(StandardScaler(), 
-						SGDClassifier(max_iter=1E3, tol=1E-3))
-	param_grid = [
-		{'sgdclassifier__loss': ['log_loss', 'hinge'], 
-		 'sgdclassifier__penalty': ['l1', 'l2'],
-		 'sgdclassifier__tol': [1E-2, 1E-3, 1E-4]},
-	]
+	#clf = make_pipeline(StandardScaler(), 
+	#					SGDClassifier(max_iter=1E3, tol=1E-3))
+	#param_grid = [
+	#	{'sgdclassifier__loss': ['log_loss', 'hinge'], 
+	#	 'sgdclassifier__penalty': ['l1', 'l2'],
+	#	 'sgdclassifier__tol': [1E-2, 1E-3, 1E-4]},
+	#]
 
-	grid_search = GridSearchCV(clf, param_grid)
+	#grid_search = GridSearchCV(clf, param_grid)
 
-	for m in Model:
-		grid_search.fit(vectors[m][Use.train], labels[Use.train])
-		print(grid_search.best_params_)
-		test(grid_search.predict, m.name, vectors[m][Use.test], labels[Use.test], True)
+	#for m in Model:
+	#	grid_search.fit(vectors[m][Use.train], labels[Use.train])
+	#	print(grid_search.best_params_)
+	#	test(grid_search.predict, m.name, vectors[m][Use.test], labels[Use.test], sgd=True)
 
 if __name__ == '__main__':
 	main()
