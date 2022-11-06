@@ -3,6 +3,7 @@ from enum import IntEnum
 import numpy as np
 from os import listdir
 from os.path import join
+from sklearn.ensemble import *
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import GridSearchCV, PredefinedSplit
@@ -50,12 +51,32 @@ def main():
         matrix = np.loadtxt(path, np.uint8, delimiter=',')
         data[Use[use]][col_index[ncols]][row_index[nrows]] = matrix
 
-    clf = DecisionTreeClassifier()
+    clfs = [
+            DecisionTreeClassifier(), 
+            BaggingClassifier(),
+            RandomForestClassifier(),
+            GradientBoostingClassifier(),
+           ]
 
-    param_grid = [
-        {'criterion': ['gini', 'entropy'],
+    param_grids = [
+        {
+         'criterion': ['gini', 'entropy'],
          'splitter': ['best', 'random'],
          'max_depth': [max(cols), None],
+        },
+        {
+         'n_estimators': [10, 20, 30],
+         'bootstrap': [True, False]
+        },
+        {
+         'n_estimators': [100, 200, 300],
+         'criterion': ['gini', 'entropy'],
+         'max_depth': [max(cols), None],
+        },
+        {
+         'loss': ['log_loss', 'exponential'],
+         'learning_rate': [0.1, 0.2, 0.3],
+         'n_estimators': [100, 200, 300],
         }
     ]
 
@@ -63,31 +84,35 @@ def main():
     valid = data[Use.valid]
     test = data[Use.test]
 
-    for c in range(data.shape[1]):
-        for r in range(data.shape[2]):
-            X = np.concatenate((train[c][r], valid[c][r]))
+    for i in range(len(clfs)):
+        print(clfs[i])
+        table_cols = '|c' * (len(param_grids[i]) + 3) + '|'
+        print(f'\\begin{{tabular}}{{{table_cols}}}')
+        print('\\hline')
+        params = ' & '.join((param.title() for param in param_grids[i]))
+        params = params.replace('_', '\\_')
+        print(f'Dataset & {params} & F1 & Accuracy \\\\')
+        print('\\hline')
+        for c in range(data.shape[1]):
+            for r in range(data.shape[2]):
+                X = np.concatenate((train[c][r], valid[c][r]))
 
-            test_fold = [-1] * len(train[c][r]) + [0] * len(valid[c][r])
-            split = PredefinedSplit(test_fold)
+                test_fold = [-1] * len(train[c][r]) + [0] * len(valid[c][r])
+                split = PredefinedSplit(test_fold)
 
-            grid_search = GridSearchCV(clf, param_grid, n_jobs=-1, cv=split)
-            grid_search.fit(X[:, :-1], X[:, -1])
-            y_pred = grid_search.predict(test[c][r][:, :-1])
+                grid_search = GridSearchCV(clfs[i], param_grids[i], n_jobs=-1, cv=split)
+                grid_search.fit(X[:, :-1], X[:, -1])
+                y_pred = grid_search.predict(test[c][r][:, :-1])
 
-            acc = accuracy_score(test[c][r][:, -1], y_pred).round(2)
-            f1 = f1_score(test[c][r][:, -1], y_pred)
-
-            params = grid_search.best_params_
-
-            crit = params['criterion']
-            max_depth = params['max_depth']
-            splitter = params['splitter']
-
-            dataset = f'c{index_col[c]}\\_{index_row[r]}'
-            params = f'{crit} & {max_depth} & {splitter}'
-
-            print(f'{dataset} & {params} & {acc} & {f1} \\\\')
-            print('\\hline')
+                dataset = f'c{index_col[c]}_{index_row[r]}'
+                params = ' & '.join((str(value) for value in grid_search.best_params_.values()))
+                acc = accuracy_score(test[c][r][:, -1], y_pred).round(2)
+                f1 = f1_score(test[c][r][:, -1], y_pred)
+                raw = f'{dataset} & {params} & {acc} & {f1} \\\\'
+                esc = raw.replace('_', '\\_')
+                print(esc)
+                print('\\hline')
+        print('\\end{tabular}')
 
 if __name__ == '__main__':
     main()
