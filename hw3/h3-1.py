@@ -30,10 +30,15 @@ def main():
     col_index = {}
     row_index = {}
 
+    index_col = {}
+    index_row = {}
+
     for i, ncols in enumerate(cols):
         col_index[ncols] = i
+        index_col[i] = ncols
     for i, nrows in enumerate(rows):
         row_index[nrows] = i
+        index_row[i] = nrows
 
     shape = (len(Use), len(cols), len(rows))
     data = np.empty(shape=shape, dtype=object)
@@ -69,9 +74,20 @@ def main():
             grid_search.fit(X[:, :-1], X[:, -1])
             y_pred = grid_search.predict(test[c][r][:, :-1])
 
-            print(accuracy_score(test[c][r][:, -1], y_pred))
-            print(f1_score(test[c][r][:, -1], y_pred))
-            print(grid_search.best_params_)
+            acc = accuracy_score(test[c][r][:, -1], y_pred).round(2)
+            f1 = f1_score(test[c][r][:, -1], y_pred)
+
+            params = grid_search.best_params_
+
+            crit = params['criterion']
+            max_depth = params['max_depth']
+            splitter = params['splitter']
+
+            dataset = f'c{index_col[c]}\\_{index_row[r]}'
+            params = f'{crit} & {max_depth} & {splitter}'
+
+            print(f'{dataset} & {params} & {acc} & {f1} \\\\')
+            print('\\hline')
 
 if __name__ == '__main__':
     main()
