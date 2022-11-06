@@ -61,39 +61,43 @@ public class KMeans {
     // Your k-means code goes here
     // Update the array rgb by assigning each entry in the rgb array to its cluster center
     private static void kmeans(int[] rgb, int k){
-        if (k <= 0)
+        if (k <= 0) {
+            System.out.println("k > 0");
             return;
+        }
 
-        if (rgb.length < k)
+        if (rgb.length < k) {
+            System.out.println("Picture size too small");
             return;
+        }
 
         int[] means = new int[k];
         int[] rgb_means = new int[rgb.length];
+        Random rnd = new Random();
 
         means[0] = rgb[0];
         int uniques = 1;
 
-        for (int i = 1; i < rgb.length; ++i) {
-            if (uniques == k)
-                break;
-
+        int start = rnd.nextInt(rgb.length / k);
+        for (int i = start; i < rgb.length && uniques < means.length; ++i) {
             if (rgb[i] > means[uniques - 1]) {
                 means[uniques] = rgb[i];
+                System.out.println(means[uniques]);
                 uniques += 1;
             }
         }
 
-        if (uniques != k)
+        if (uniques != means.length) {
+            System.out.println("Not enough unique pixels");
             return;
-
-        for (int i = 0; i < means.length; ++i) {
-            System.out.println(means[i]);
         }
 
-        double min_error = 0.1;
-        double error = 1;
+        double min_error = 1;
+        double error = min_error + 1;
 
         while (error > min_error) {
+            int[] num_means = new int[k];
+
             // minimization
             for (int i = 0; i < rgb.length; ++i) {
                 int min = Math.abs(rgb[i] - means[0]);
@@ -108,13 +112,52 @@ public class KMeans {
                     }
                 }
 
-                rgb[i] = means[min_i];
+                rgb_means[i] = min_i;
+                num_means[min_i] += 1;
             }
 
+            long[] new_means = new long[k];
+
             // expectation
-            // for (int i = 0; i < rgb.length; ++i)
+            for (int i = 0; i < rgb_means.length; ++i)
+                new_means[rgb_means[i]] += rgb[i];
+            for (int i = 0; i < new_means.length; ++i)
+                if (num_means[i] != 0)
+                    new_means[i] /= num_means[i];
+
+            for (int i = 0; i < k; ++i) {
+                System.out.println("Mean: " + means[i]);
+                System.out.println("New Mean: " + new_means[i]);
+            }
+                
             error = 0;
+            for (int i = 0; i < k; ++i)
+                error += Math.abs(new_means[i] - means[i]);
+            System.out.println("Error: " + error);
+
+            for (int i = 0; i < k; ++i)
+                means[i] = (int)new_means[i];
         }
+
+        // map mean to closest rgb value
+        for (int i = 0; i < means.length; ++i) {
+            int min = Math.abs(means[i] - rgb[0]);
+            int min_i = 0;
+
+            for (int i2 = 1; i2 < rgb.length; ++i2) {
+                int diff = Math.abs(means[i] - rgb[i2]);
+
+                if (diff < min) {
+                    min = diff;
+                    min_i = i2;
+                }
+            }
+
+            means[i] = rgb[min_i];
+        }
+
+        for (int i = 0; i < rgb.length; ++i)
+            rgb[i] = means[rgb_means[i]];
     }
 
 }
