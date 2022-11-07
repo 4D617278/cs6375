@@ -45,22 +45,23 @@ def main():
             for use in Use:
                 data[col][row][use] = loadtxt_dir(argv[1], use.name + suffix)
 
+
     clfs = [
         DecisionTreeClassifier(random_state=0),
         BaggingClassifier(random_state=0),
         RandomForestClassifier(random_state=0),
         GradientBoostingClassifier(random_state=0),
-   ]
+    ]
 
     param_grids = [
         {
          'criterion': ['gini', 'entropy'],
-         'splitter': ['best', 'random'],
          'max_depth': [3, 4, 5, 6, 7, 8, 9, 10],
+         'splitter': ['best', 'random'],
         },
         {
-         'n_estimators': [10, 20, 30],
-         'bootstrap': [True, False]
+         'bootstrap_features': [False, True],
+         'n_estimators': [100, 150, 200],
         },
         {
          'n_estimators': [100, 200, 300],
