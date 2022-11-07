@@ -68,8 +68,8 @@ def main():
          'n_estimators': [100, 150, 200, 250, 300, 350],
         },
         {
-         'loss': ['log_loss', 'exponential'],
          'learning_rate': [0.1, 0.2, 0.3],
+         'loss': ['log_loss', 'exponential'],
          'n_estimators': [100, 200, 300],
         }
     ]
