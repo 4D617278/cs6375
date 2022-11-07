@@ -64,9 +64,8 @@ def main():
          'n_estimators': [100, 150, 200],
         },
         {
-         'n_estimators': [100, 200, 300],
-         'criterion': ['gini', 'entropy'],
-         'max_depth': [max(num_clauses), None],
+         'max_depth': [4, 6, 7, 8, 9, 10, 11, 12],
+         'n_estimators': [100, 150, 200, 250, 300, 350],
         },
         {
          'loss': ['log_loss', 'exponential'],
