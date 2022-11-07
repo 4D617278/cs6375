@@ -35,17 +35,17 @@ def main():
     param_grids = [
         {
          'criterion': ['gini', 'entropy'],
+         'max_depth': [10, 11, 13, 15, 17, 19, 20, None],
          'splitter': ['best', 'random'],
-         'max_depth': [len(X_train), None],
         },
         {
+         'bootstrap': [True, False],
          'n_estimators': [10, 20, 30],
-         'bootstrap': [True, False]
         },
         {
-         'n_estimators': [100, 200, 300],
          'criterion': ['gini', 'entropy'],
-         'max_depth': [len(X_train), None],
+         'max_depth': [10, 11, 13, 15, 17, 19, 20, None],
+         'n_estimators': [100, 200, 300],
         },
         {
          'criterion': ['friedman_mse', 'squared_error'],
@@ -68,7 +68,7 @@ def main():
         print(esc)
         print('\\hline')
 
-        grid_search = GridSearchCV(clf, param_grid, n_jobs=-1, verbose=2)
+        grid_search = GridSearchCV(clf, param_grid, n_jobs=-1)
         grid_search.fit(X_train, y_train)
         y_pred = grid_search.predict(X_test)
 
