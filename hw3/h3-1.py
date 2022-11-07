@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from enum import IntEnum
 import numpy as np
-from os import listdir
 from os.path import join
 from sklearn.ensemble import *
 from sklearn.tree import DecisionTreeClassifier
@@ -14,55 +13,50 @@ class Use(IntEnum):
     valid = 1
     test = 2
 
+def loadtxt_dir(dir, filename):
+    path = join(argv[1], filename)
+    return np.loadtxt(path, np.uint8, delimiter=',')
+
 def main():
     if len(argv) <= 1:
         print(f'usage: {argv[0]} <dir>')
         exit(1)
 
-    cols = set()
-    rows = set()
-
-    filenames = listdir(argv[1])
-    for filename in filenames:
-        _, ncols, nrows = filename.split('.')[0].split('_')
-        cols.add(int(ncols[1:]))
-        rows.add(nrows)
+    num_clauses = np.array([300, 500, 1000, 1500, 1800])
+    num_examples = np.array([100, 1000, 5000])
 
     col_index = {}
     row_index = {}
 
-    index_col = {}
-    index_row = {}
-
-    for i, ncols in enumerate(cols):
+    for i, ncols in enumerate(num_clauses):
         col_index[ncols] = i
-        index_col[i] = ncols
-    for i, nrows in enumerate(rows):
+    for i, nrows in enumerate(num_examples):
         row_index[nrows] = i
-        index_row[i] = nrows
 
-    shape = (len(Use), len(cols), len(rows))
+    shape = (len(num_clauses), len(num_examples), len(Use))
     data = np.empty(shape=shape, dtype=object)
 
-    for filename in filenames:
-        use, ncols, nrows = filename.split('.')[0].split('_')
-        ncols = int(ncols[1:])
-        path = join(argv[1], filename)
-        matrix = np.loadtxt(path, np.uint8, delimiter=',')
-        data[Use[use]][col_index[ncols]][row_index[nrows]] = matrix
+    for c in num_clauses:
+        for e in num_examples:
+            col = col_index[c]
+            row = row_index[e]
+            suffix = f'_c{c}_d{e}.csv'
+
+            for use in Use:
+                data[col][row][use] = loadtxt_dir(argv[1], use.name + suffix)
 
     clfs = [
-            DecisionTreeClassifier(), 
-            BaggingClassifier(),
-            RandomForestClassifier(),
-            GradientBoostingClassifier(),
-           ]
+        DecisionTreeClassifier(random_state=0),
+        BaggingClassifier(random_state=0),
+        RandomForestClassifier(random_state=0),
+        GradientBoostingClassifier(random_state=0),
+   ]
 
     param_grids = [
         {
          'criterion': ['gini', 'entropy'],
          'splitter': ['best', 'random'],
-         'max_depth': [max(cols), None],
+         'max_depth': [3, 4, 5, 6, 7, 8, 9, 10],
         },
         {
          'n_estimators': [10, 20, 30],
@@ -71,7 +65,7 @@ def main():
         {
          'n_estimators': [100, 200, 300],
          'criterion': ['gini', 'entropy'],
-         'max_depth': [max(cols), None],
+         'max_depth': [max(num_clauses), None],
         },
         {
          'loss': ['log_loss', 'exponential'],
@@ -80,38 +74,51 @@ def main():
         }
     ]
 
-    train = data[Use.train]
-    valid = data[Use.valid]
-    test = data[Use.test]
+    metrics = [accuracy_score, f1_score]
+
+    metric_strs = ' & '.join(metric.__name__.title() for metric in metrics)
 
     for i in range(len(clfs)):
-        print(clfs[i])
-        table_cols = '|c' * (len(param_grids[i]) + 3) + '|'
+        clf = clfs[i]
+        param_grid = param_grids[i]
+
+        table_cols = '|c' * (len(param_grid) + len(metrics) + 1) + '|'
+        param_names = ' & '.join((param.title() for param in param_grids[i]))
+        raw = f'Dataset & {param_names} & {metric_strs} \\\\'
+        esc = raw.replace('_', '\\_')
+
+        print(clf)
         print(f'\\begin{{tabular}}{{{table_cols}}}')
         print('\\hline')
-        params = ' & '.join((param.title() for param in param_grids[i]))
-        params = params.replace('_', '\\_')
-        print(f'Dataset & {params} & F1 & Accuracy \\\\')
+        print(esc)
         print('\\hline')
-        for c in range(data.shape[1]):
-            for r in range(data.shape[2]):
-                X = np.concatenate((train[c][r], valid[c][r]))
 
-                test_fold = [-1] * len(train[c][r]) + [0] * len(valid[c][r])
-                split = PredefinedSplit(test_fold)
+        for c in range(data.shape[0]):
+            for r in range(data.shape[1]):
+                train = data[c][r][Use.train]
+                y = data[c][r][Use.test]
+                X = np.concatenate((train, data[c][r][Use.valid]))
 
-                grid_search = GridSearchCV(clfs[i], param_grids[i], n_jobs=-1, cv=split)
+                test_fold = np.zeros(len(X))
+                test_fold[:len(train)] = -1
+                cv = PredefinedSplit(test_fold)
+
+                grid_search = GridSearchCV(clf, param_grid, n_jobs=-1, cv=cv)
                 grid_search.fit(X[:, :-1], X[:, -1])
-                y_pred = grid_search.predict(test[c][r][:, :-1])
+                y_pred = grid_search.predict(y[:, :-1])
 
-                dataset = f'c{index_col[c]}_{index_row[r]}'
-                params = ' & '.join((str(value) for value in grid_search.best_params_.values()))
-                acc = accuracy_score(test[c][r][:, -1], y_pred).round(2)
-                f1 = f1_score(test[c][r][:, -1], y_pred)
-                raw = f'{dataset} & {params} & {acc} & {f1} \\\\'
+                dataset = f'c{num_clauses[c]}_d{num_examples[r]}'
+                params = ' & '.join((str(value) for value in 
+                                    grid_search.best_params_.values()))
+                scores = ' & '.join(str(metric(y[:, -1], y_pred))
+                           for metric in metrics)
+
+                raw = f'{dataset} & {params} & {scores} \\\\'
                 esc = raw.replace('_', '\\_')
+
                 print(esc)
                 print('\\hline')
+
         print('\\end{tabular}')
 
 if __name__ == '__main__':
