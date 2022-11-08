@@ -15,149 +15,184 @@ import java.util.Random;
  
 
 public class KMeans {
-    public static void main(String [] args){
-	if (args.length < 3){
-	    System.out.println("Usage: Kmeans <input-image> <k> <output-image>");
-	    return;
-	}
-	try{
-	    BufferedImage originalImage = ImageIO.read(new File(args[0]));
-	    int k=Integer.parseInt(args[1]);
-	    BufferedImage kmeansJpg = kmeans_helper(originalImage,k);
-	    ImageIO.write(kmeansJpg, "jpg", new File(args[2])); 
-	    
-	}catch(IOException e){
-	    System.out.println(e.getMessage());
-	}	
+    public static void main(String [] args) {
+        if (args.length < 3){
+            System.out.println("Usage: Kmeans <input-image> <k> <output-image>");
+            return;
+        } try {
+            BufferedImage originalImage = ImageIO.read(new File(args[0]));
+            int k=Integer.parseInt(args[1]);
+            BufferedImage kmeansJpg = kmeans_helper(originalImage,k);
+            ImageIO.write(kmeansJpg, "jpg", new File(args[2])); 
+            
+        } catch(IOException e) {
+            System.out.println(e.getMessage());
+        }	
     }
     
-    private static BufferedImage kmeans_helper(BufferedImage originalImage, int k){
-	int w=originalImage.getWidth();
-	int h=originalImage.getHeight();
-	BufferedImage kmeansImage = new BufferedImage(w,h,originalImage.getType());
-	Graphics2D g = kmeansImage.createGraphics();
-	g.drawImage(originalImage, 0, 0, w,h , null);
-	// Read rgb values from the image
-	int[] rgb=new int[w*h];
-	int count=0;
-	for(int i=0;i<w;i++){
-	    for(int j=0;j<h;j++){
-		rgb[count++]=kmeansImage.getRGB(i,j);
-	    }
-	}
-	// Call kmeans algorithm: update the rgb values
-	kmeans(rgb,k);
+    private static BufferedImage kmeans_helper(BufferedImage originalImage, int k) {
+        int w = originalImage.getWidth();
+        int h = originalImage.getHeight();
+        BufferedImage kmeansImage = new BufferedImage(w, h, originalImage.getType());
+        Graphics2D g = kmeansImage.createGraphics();
+        g.drawImage(originalImage, 0, 0, w, h, null);
 
-	// Write the new rgb values to the image
-	count=0;
-	for(int i=0;i<w;i++){
-	    for(int j=0;j<h;j++){
-		kmeansImage.setRGB(i,j,rgb[count++]);
-	    }
-	}
-	return kmeansImage;
+        // Read rgb values from the image
+        int[] rgb = new int[w * h];
+        int count = 0;
+        for (int i = 0; i < w; i++) {
+            for (int j = 0; j < h; j++) {
+                rgb[count++] = kmeansImage.getRGB(i, j);
+            }
+        }
+
+        // Call kmeans algorithm: update the rgb values
+        kmeans(rgb, k);
+
+        // Write the new rgb values to the image
+        count = 0;
+        for(int i = 0; i < w; i++) {
+            for(int j = 0; j < h; j++)
+                kmeansImage.setRGB(i, j, rgb[count++]);
+        }
+
+        return kmeansImage;
+    }
+
+    private static int min_dist_indx(double val, byte[] constant) {
+        double[] dbl_constant = new double[constant.length];
+        for (int i = 0; i < constant.length; ++i)
+            dbl_constant[i] = constant[i];
+
+        return min_dist_indx(val, dbl_constant);
+    }
+
+    private static int min_dist_indx(double val, double[] constant) {
+        double min = Math.pow(val - constant[0], 2);
+        int min_i = 0;
+
+        for (int i2 = 1; i2 < constant.length; ++i2) {
+            double dist = Math.pow(val - constant[i2], 2);
+
+            if (dist < min) {
+                min = dist;
+                min_i = i2;
+            }
+        }
+
+        return min_i;
     }
 
     // Your k-means code goes here
     // Update the array rgb by assigning each entry in the rgb array to its cluster center
-    private static void kmeans(int[] rgb, int k){
+    private static void kmeans(int[] pixels, int k) {
         if (k <= 0) {
             System.out.println("k > 0");
             return;
         }
 
-        if (rgb.length < k) {
-            System.out.println("Picture size too small");
-            return;
-        }
+        byte[][] rgba = new byte[Integer.BYTES][pixels.length];
 
-        int[] means = new int[k];
-        int[] rgb_means = new int[rgb.length];
-        Random rnd = new Random();
-
-        means[0] = rgb[0];
-        int uniques = 1;
-
-        int start = rnd.nextInt(rgb.length / k);
-        for (int i = start; i < rgb.length && uniques < means.length; ++i) {
-            if (rgb[i] > means[uniques - 1]) {
-                means[uniques] = rgb[i];
-                System.out.println(means[uniques]);
-                uniques += 1;
+        for (int b = 0; b < rgba.length; ++b) {
+            for (int i = 0; i < rgba[b].length; ++i) {
+                rgba[b][i] = (byte)((pixels[i] >> (Byte.SIZE * b)) & 0xff);
             }
         }
 
-        if (uniques != means.length) {
-            System.out.println("Not enough unique pixels");
-            return;
-        }
+        double[][] means = new double[rgba.length][k];
+        int[][] rgba_means = new int[rgba.length][rgba[0].length];
+        Random rnd = new Random();
 
-        double min_error = 1;
-        double error = min_error + 1;
+        // kmeans++
+        for (int b = 0; b < means.length; ++b)
+            means[b][0] = rgba[b][rnd.nextInt(rgba.length)];
 
-        while (error > min_error) {
-            int[] num_means = new int[k];
+        for (int b = 0; b < means.length; ++b) {
+            for (int m = 1; m < means[b].length; ++m) {
+                double[] min_dist = new double[rgba[b].length];
 
-            // minimization
-            for (int i = 0; i < rgb.length; ++i) {
-                int min = Math.abs(rgb[i] - means[0]);
-                int min_i = 0;
+                // minimum distance to any mean
+                for (int i = 0; i < rgba[b].length; ++i) {
+                    min_dist[i] = Math.pow(rgba[b][i] - means[b][0], 2);
 
-                for (int i2 = 1; i2 < means.length; ++i2) {
-                    int diff = Math.abs(rgb[i] - means[i2]);
-
-                    if (diff < min) {
-                        min = diff;
-                        min_i = i2;
+                    for (int m2 = 1; m2 < m; ++m2) {
+                        double dist = Math.pow(rgba[b][i] - means[b][m2], 2);
+                        if (dist < min_dist[i])
+                            min_dist[i] = dist;
                     }
                 }
 
-                rgb_means[i] = min_i;
-                num_means[min_i] += 1;
+                double sum = 0;
+                for (int i = 0; i < min_dist.length; ++i)
+                    sum += min_dist[i];
+
+                double r = rnd.nextDouble() * sum;
+                sum = 0;
+
+                for (int i = 0; i < min_dist.length; ++i) {
+                    sum += min_dist[i];
+                    if (sum >= r) {
+                        means[b][m] = rgba[b][i];
+                        break;
+                    }
+                }
             }
+        }
 
-            long[] new_means = new long[k];
+        for (int b = 0; b < means.length; ++b) {
+            double prev_error, error = Double.MAX_VALUE;
 
-            // expectation
-            for (int i = 0; i < rgb_means.length; ++i)
-                new_means[rgb_means[i]] += rgb[i];
-            for (int i = 0; i < new_means.length; ++i)
-                if (num_means[i] != 0)
-                    new_means[i] /= num_means[i];
+            do {
+                    prev_error = error;
+                    int[][] num_means = new int[means.length][means[0].length];
 
-            for (int i = 0; i < k; ++i) {
-                System.out.println("Mean: " + means[i]);
-                System.out.println("New Mean: " + new_means[i]);
-            }
-                
-            error = 0;
-            for (int i = 0; i < k; ++i)
-                error += Math.abs(new_means[i] - means[i]);
-            System.out.println("Error: " + error);
+                    // assign to mean with minimum distance
+                    for (int i = 0; i < rgba[b].length; ++i) {
+                        int min_i = min_dist_indx(rgba[b][i], means[b]);
+                        rgba_means[b][i] = min_i;
+                        // System.out.println("rgba: " + rgba[b][i]);
+                        // System.out.println("min mean[b]: " + means[b][rgba_means[b][i]]);
+                        num_means[b][min_i] += 1;
+                    }
 
-            for (int i = 0; i < k; ++i)
-                means[i] = (int)new_means[i];
+                    // expectation
+                    for (int i = 0; i < means[b].length; ++i)
+                        means[b][i] = 0;
+                    for (int i = 0; i < rgba_means[b].length; ++i)
+                        means[b][rgba_means[b][i]] += rgba[b][i];
+                    for (int i = 0; i < k; ++i) {
+                        if (num_means[b][i] != 0)
+                            means[b][i] /= num_means[b][i];
+                        System.out.println("b: " + b + " Mean: " + means[b][i]);
+                    }
+
+                    error = 0;
+                    for (int i = 0; i < rgba[b].length; ++i)
+                        error += Math.pow(means[b][rgba_means[b][i]] - rgba[b][i], 2);
+                    System.out.println("Error: " + error);
+            } while (error < prev_error);
         }
 
         // map mean to closest rgb value
-        for (int i = 0; i < means.length; ++i) {
-            int min = Math.abs(means[i] - rgb[0]);
-            int min_i = 0;
-
-            for (int i2 = 1; i2 < rgb.length; ++i2) {
-                int diff = Math.abs(means[i] - rgb[i2]);
-
-                if (diff < min) {
-                    min = diff;
-                    min_i = i2;
-                }
+        for (int b = 0; b < rgba.length; ++b) {
+            for (int i = 0; i < means[b].length; ++i) {
+                int min_i = min_dist_indx(means[b][i], rgba[b]);
+                means[b][i] = rgba[b][min_i];
+                System.out.println("b: " + b + " Mean: " + means[b][i]);
             }
-
-            means[i] = rgb[min_i];
         }
 
-        for (int i = 0; i < rgb.length; ++i)
-            rgb[i] = means[rgb_means[i]];
+        for (int b = 0; b < rgba.length; ++b)
+            for (int i = 0; i < rgba[b].length; ++i) {
+                rgba[b][i] = (byte)means[b][rgba_means[b][i]];
+            }
+
+        for (int i = 0; i < rgba[0].length; ++i) {
+            pixels[i] = 0;
+            for (int b = 0; b < rgba.length; ++b) {
+                pixels[i] += (rgba[b][i] << (Byte.SIZE * b));
+            }
+        }
     }
 
 }
