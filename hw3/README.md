@@ -8,8 +8,6 @@ Tree Classifiers
 
 KMeans
 
-`$ ./test.sh` (Linux)
+`$ java KMeans.java <input-image> <epochs>"
 
-`$ java KMeans.java <input-image> <k> <output-image>" (Windows)
-
-Example: `$ java KMeans.java Penguins.jpg 20 Penguins20.jpg"
+Example: `$ java KMeans.java Penguins.jpg 5"

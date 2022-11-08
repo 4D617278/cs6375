@@ -7,6 +7,7 @@ import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
@@ -16,15 +17,52 @@ import java.util.Random;
 
 public class KMeans {
     public static void main(String [] args) {
-        if (args.length < 3){
-            System.out.println("Usage: Kmeans <input-image> <k> <output-image>");
+        int[] test = {2, 5, 10, 15, 20};
+
+        if (args.length < 2){
+            // System.out.println("Usage: Kmeans <input-image> <k> <output-image>");
+            System.out.println("Usage: Kmeans <input-image> <epochs>");
             return;
         } try {
             BufferedImage originalImage = ImageIO.read(new File(args[0]));
-            int k=Integer.parseInt(args[1]);
-            BufferedImage kmeansJpg = kmeans_helper(originalImage,k);
-            ImageIO.write(kmeansJpg, "jpg", new File(args[2])); 
-            
+            // int k = Integer.parseInt(args[1]);
+            int epochs = Integer.parseInt(args[1]);
+            // BufferedImage kmeansJpg = kmeans_helper(originalImage, k);
+
+            for (int i = 0; i < test.length; ++i) {
+                long[] size = new long[test.length];
+                long sum = 0;
+
+                for (int e = 0; e < epochs; ++e) {
+                    BufferedImage kmeansJpg = kmeans_helper(originalImage, test[i]);
+
+                    ByteArrayOutputStream tmp = new ByteArrayOutputStream();
+                    ImageIO.write(kmeansJpg, "jpg", tmp);
+                    tmp.close();
+
+                    size[e] = tmp.size();
+                    sum += tmp.size();
+                        
+                    if (e == epochs - 1)
+                        ImageIO.write(kmeansJpg, "jpg", new File(args[0] + i)); 
+                }
+
+                // average
+                double avg = sum / test.length;
+
+                // variance
+                double var = 0;
+                for (int i2 = 0; i2 < epochs; ++i2)
+                    var += Math.pow((size[i2] - avg), 2);
+
+                var /= test.length;
+
+                System.out.println(test[i] + " & " + avg + " & " + var + " \\\\");
+                System.out.println("\\hline");
+            }
+
+            // ImageIO.write(kmeansJpg, "jpg", new File(args[2])); 
+
         } catch(IOException e) {
             System.out.println(e.getMessage());
         }	
@@ -163,13 +201,13 @@ public class KMeans {
                     for (int i = 0; i < k; ++i) {
                         if (num_means[b][i] != 0)
                             means[b][i] /= num_means[b][i];
-                        System.out.println("b: " + b + " Mean: " + means[b][i]);
+                        // System.out.println("b: " + b + " Mean: " + means[b][i]);
                     }
 
                     error = 0;
                     for (int i = 0; i < rgba[b].length; ++i)
                         error += Math.pow(means[b][rgba_means[b][i]] - rgba[b][i], 2);
-                    System.out.println("Error: " + error);
+                    // System.out.println("Error: " + error);
             } while (error < prev_error);
         }
 
@@ -178,7 +216,7 @@ public class KMeans {
             for (int i = 0; i < means[b].length; ++i) {
                 int min_i = min_dist_indx(means[b][i], rgba[b]);
                 means[b][i] = rgba[b][min_i];
-                System.out.println("b: " + b + " Mean: " + means[b][i]);
+                // System.out.println("b: " + b + " Mean: " + means[b][i]);
             }
         }
 
