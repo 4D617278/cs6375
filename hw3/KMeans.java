@@ -26,7 +26,6 @@ public class KMeans {
         } try {
             File inputFile = new File(args[0]);
             BufferedImage originalImage = ImageIO.read(inputFile);
-            /*
             long originalSize = inputFile.length();
             int epochs = Integer.parseInt(args[1]);
 
@@ -62,11 +61,12 @@ public class KMeans {
                 System.out.println(row);
                 System.out.println("\\hline");
             } 
-            */
 
+            /*
             int k = Integer.parseInt(args[1]);
             BufferedImage kmeansJpg = kmeans_helper(originalImage, k);
             ImageIO.write(kmeansJpg, "jpg", new File(args[2])); 
+            */
 
         } catch(IOException e) {
             System.out.println(e.getMessage());
@@ -182,12 +182,6 @@ public class KMeans {
             }
         }
 
-        for (int m = 0; m < means.length; ++m)
-            System.out.println(means[0][m]);
-
-        if (0 == 1)
-            return;
-
         for (int b = 0; b < means.length; ++b) {
             double prev_error, error = Double.MAX_VALUE;
 
@@ -215,7 +209,7 @@ public class KMeans {
                     error = 0;
                     for (int i = 0; i < rgba[b].length; ++i)
                         error += Math.pow(means[b][rgba_means[b][i]] - rgba[b][i], 2);
-                    System.out.println("Error: " + error);
+                    // System.out.println("Error: " + error);
             } while (error < prev_error);
         }
 
