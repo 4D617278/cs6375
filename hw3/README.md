@@ -10,4 +10,4 @@ KMeans
 
 `$ java KMeans.java <input-image> <epochs>"
 
-Example: `$ java KMeans.java Penguins.jpg 5"
+Example: `$ java KMeans.java Penguins.jpg 10"
